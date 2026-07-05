@@ -226,6 +226,18 @@ body[data-screen="prompter"] #prompter-screen {
   padding: 16px 0 8px;
 }
 
+.share-block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.text-btn--muted {
+  color: var(--dateline);
+}
+
 /* ---------- Teleprompter screen ---------- */
 
 .prompter-chrome {
