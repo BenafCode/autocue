@@ -64,7 +64,7 @@ button {
   font-size: 13px;
   color: var(--paper);
   min-width: 44px;
-  min-height: 44px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -208,6 +208,18 @@ body[data-screen="prompter"] #prompter-screen {
   background: var(--rule);
 }
 
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+#speed-value {
+  min-width: 1.2em;
+  text-align: right;
+}
+
 .start-block {
   display: flex;
   justify-content: center;
@@ -311,8 +323,20 @@ body[data-screen="prompter"] #prompter-screen {
 .controls-row {
   display: flex;
   align-items: center;
-  justify-content: space-around;
+  justify-content: space-between;
+  gap: 12px;
   padding-top: 12px;
+}
+
+.speed-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#prompter-speed-value {
+  min-width: 1em;
+  text-align: center;
 }
 
 @media (min-width: 700px) {
