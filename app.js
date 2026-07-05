@@ -43,6 +43,7 @@
   var scriptInput = document.getElementById("script-input");
   var fontSizeOptions = document.getElementById("font-size-options");
   var scrollSpeedInput = document.getElementById("scroll-speed");
+  var speedValueEl = document.getElementById("speed-value");
   var estTimeEl = document.getElementById("est-time");
   var startBtn = document.getElementById("start-btn");
 
@@ -57,6 +58,7 @@
   var playPauseBtn = document.getElementById("play-pause-btn");
   var speedDownBtn = document.getElementById("speed-down-btn");
   var speedUpBtn = document.getElementById("speed-up-btn");
+  var prompterSpeedValueEl = document.getElementById("prompter-speed-value");
   var restartBtn = document.getElementById("restart-btn");
   var exitBtn = document.getElementById("exit-btn");
 
@@ -81,6 +83,7 @@
   function initSetupScreen() {
     scriptInput.value = state.script;
     scrollSpeedInput.value = state.scrollSpeed;
+    speedValueEl.textContent = state.scrollSpeed;
     updateFontSizeUI();
     formatEstTime();
 
@@ -100,6 +103,7 @@
 
     scrollSpeedInput.addEventListener("input", function () {
       state.scrollSpeed = Number(scrollSpeedInput.value);
+      speedValueEl.textContent = state.scrollSpeed;
       saveState();
     });
 
@@ -116,6 +120,15 @@
   var resumeTimer = null;
   var wakeLockSentinel = null;
   var chromeVisible = true;
+  // Float accumulator driving auto-scroll: `scrollTop` truncates to an integer
+  // on every write in some engines, so at low speeds the sub-pixel per-frame
+  // delta gets silently discarded and the scroll appears to freeze. Tracking
+  // position separately preserves the fractional progress across frames.
+  var scrollPos = 0;
+
+  function syncScrollPosFromDOM() {
+    scrollPos = scriptScroll.scrollTop;
+  }
 
   function renderScriptBlocks() {
     var blocks = state.script.split(/\n\s*\n/).map(function (b) { return b.trim(); }).filter(Boolean);
@@ -163,7 +176,8 @@
     if (isPlaying) {
       elapsedMs += dt;
       var pxPerSec = state.scrollSpeed * PX_PER_SEC_PER_SPEED_UNIT;
-      scriptScroll.scrollTop += (pxPerSec * dt) / 1000;
+      scrollPos += (pxPerSec * dt) / 1000;
+      scriptScroll.scrollTop = scrollPos;
       updateTimerUI();
     }
     updateProgressUI();
@@ -193,6 +207,7 @@
     if (manuallyPaused) return;
     resumeTimer = setTimeout(function () {
       if (!manuallyPaused) {
+        syncScrollPosFromDOM(); // pick up wherever native/manual scrolling left off
         isPlaying = true;
         updatePlayPauseUI();
       }
@@ -207,18 +222,27 @@
 
   function togglePlayPause() {
     clearTimeout(resumeTimer);
-    isPlaying = !isPlaying;
-    manuallyPaused = !isPlaying;
+    if (isPlaying) {
+      isPlaying = false;
+      manuallyPaused = true;
+    } else {
+      syncScrollPosFromDOM(); // pick up wherever native/manual scrolling left off
+      isPlaying = true;
+      manuallyPaused = false;
+    }
     updatePlayPauseUI();
   }
 
   function adjustSpeed(delta) {
     state.scrollSpeed = Math.min(MAX_SPEED, Math.max(MIN_SPEED, state.scrollSpeed + delta));
     scrollSpeedInput.value = state.scrollSpeed;
+    speedValueEl.textContent = state.scrollSpeed;
+    prompterSpeedValueEl.textContent = state.scrollSpeed;
     saveState();
   }
 
   function restart() {
+    scrollPos = 0;
     scriptScroll.scrollTop = 0;
     elapsedMs = 0;
     updateTimerUI();
@@ -322,11 +346,13 @@
 
   function enterPrompterScreen() {
     renderScriptBlocks();
+    prompterSpeedValueEl.textContent = state.scrollSpeed;
     isPlaying = true;
     manuallyPaused = false;
     elapsedMs = 0;
     setChromeVisible(true);
     body.dataset.screen = "prompter";
+    scrollPos = 0;
     scriptScroll.scrollTop = 0;
     updatePlayPauseUI();
     updateTimerUI();

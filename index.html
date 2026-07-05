@@ -41,7 +41,10 @@
     <div class="rule"></div>
     <div class="settings-row">
       <span class="label">Scroll Speed</span>
-      <input type="range" id="scroll-speed" class="speed-slider" min="1" max="10" step="1" value="5">
+      <div class="speed-control">
+        <input type="range" id="scroll-speed" class="speed-slider" min="1" max="10" step="1" value="5">
+        <span class="label label--dateline" id="speed-value">5</span>
+      </div>
     </div>
     <div class="rule"></div>
     <div class="settings-row">
@@ -75,8 +78,11 @@
     <div class="rule"></div>
     <div class="controls-row">
       <button type="button" class="text-btn" id="play-pause-btn">▮▮</button>
-      <button type="button" class="text-btn" id="speed-down-btn">−</button>
-      <button type="button" class="text-btn" id="speed-up-btn">+</button>
+      <div class="speed-stepper">
+        <button type="button" class="text-btn" id="speed-down-btn">−</button>
+        <span class="label label--dateline" id="prompter-speed-value">5</span>
+        <button type="button" class="text-btn" id="speed-up-btn">+</button>
+      </div>
       <button type="button" class="text-btn" id="restart-btn">Restart</button>
       <button type="button" class="text-btn" id="exit-btn">Exit</button>
     </div>
