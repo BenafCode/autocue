@@ -7,6 +7,7 @@
   var PX_PER_SEC_PER_SPEED_UNIT = 12; // speed 5 => ~60px/s baseline scroll rate
   var DRAG_THRESHOLD = 10; // px of movement before a touch/click counts as a drag, not a tap
   var RESUME_DELAY_MS = 2000;
+  var CHROME_LINGER_MS = 2500; // how long chrome stays up after resuming before auto-hiding
 
   var state = {
     script: "",
@@ -38,6 +39,48 @@
     }
   }
 
+  // ---------- Share link ----------
+  // The script travels in the URL fragment (never sent to a server, no
+  // length limit imposed by GitHub Pages) as UTF-8-safe base64url, so a
+  // recipient's browser can decode it purely client-side.
+
+  function utf8ToBase64Url(str) {
+    var bytes = new TextEncoder().encode(str);
+    var binary = "";
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function base64UrlToUtf8(b64url) {
+    var base64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) base64 += "=";
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function buildShareUrl() {
+    return location.origin + location.pathname + "#s=" + utf8ToBase64Url(state.script);
+  }
+
+  function loadSharedScriptFromHash() {
+    var match = /(?:^|[#&])s=([^&]+)/.exec(location.hash);
+    if (!match) return;
+    try {
+      var decoded = base64UrlToUtf8(match[1]);
+      if (decoded) {
+        state.script = decoded;
+        saveState();
+      }
+    } catch (e) {
+      /* malformed share link — ignore, keep whatever script was already saved */
+    } finally {
+      // Strip the (potentially huge) fragment so reloads/edits don't re-decode it
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  }
+
   // ---------- DOM refs ----------
   var body = document.body;
   var scriptInput = document.getElementById("script-input");
@@ -46,6 +89,8 @@
   var speedValueEl = document.getElementById("speed-value");
   var estTimeEl = document.getElementById("est-time");
   var startBtn = document.getElementById("start-btn");
+  var shareBtn = document.getElementById("share-btn");
+  var shareFeedbackEl = document.getElementById("share-feedback");
 
   var chromeTop = document.getElementById("chrome-top");
   var chromeBottom = document.getElementById("chrome-bottom");
@@ -108,6 +153,36 @@
     });
 
     startBtn.addEventListener("click", enterPrompterScreen);
+    shareBtn.addEventListener("click", shareScript);
+  }
+
+  var shareFeedbackTimer = null;
+
+  function flashShareFeedback(message) {
+    shareFeedbackEl.textContent = message;
+    shareFeedbackEl.hidden = false;
+    clearTimeout(shareFeedbackTimer);
+    shareFeedbackTimer = setTimeout(function () {
+      shareFeedbackEl.hidden = true;
+    }, 2000);
+  }
+
+  function shareScript() {
+    if (!state.script.trim()) return;
+    var url = buildShareUrl();
+    if (navigator.share) {
+      navigator.share({ title: "Autocue script", url: url }).catch(function () {
+        /* user cancelled the share sheet — nothing to do */
+      });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () {
+        flashShareFeedback("Link Copied");
+      }).catch(function () {
+        window.prompt("Copy this link:", url);
+      });
+    } else {
+      window.prompt("Copy this link:", url);
+    }
   }
 
   // ---------- Teleprompter screen ----------
@@ -119,7 +194,6 @@
   var rafId = null;
   var resumeTimer = null;
   var wakeLockSentinel = null;
-  var chromeVisible = true;
   // Float accumulator driving auto-scroll: `scrollTop` truncates to an integer
   // on every write in some engines, so at low speeds the sub-pixel per-frame
   // delta gets silently discarded and the scroll appears to freeze. Tracking
@@ -163,9 +237,39 @@
     liveDot.classList.toggle("live", isPlaying);
   }
 
+  var chromeHideTimer = null;
+
+  function showChromeNow() {
+    chromeTop.classList.remove("hidden");
+    chromeBottom.classList.remove("hidden");
+  }
+
+  function hideChromeNow() {
+    chromeTop.classList.add("hidden");
+    chromeBottom.classList.add("hidden");
+  }
+
+  function updateChromeVisibility() {
+    clearTimeout(chromeHideTimer);
+    if (!isPlaying) {
+      // Paused (however that happened): chrome stays up indefinitely so
+      // Play/Pause, speed, Restart and Exit are all reachable.
+      showChromeNow();
+      return;
+    }
+    // Playing: keep chrome up briefly after a resume (so a released hold
+    // still leaves the controls reachable for a moment, reels-style tap
+    // notwithstanding) then auto-hide for a clean, uncluttered read.
+    showChromeNow();
+    chromeHideTimer = setTimeout(function () {
+      if (isPlaying) hideChromeNow();
+    }, CHROME_LINGER_MS);
+  }
+
   function updatePlayPauseUI() {
     playPauseBtn.textContent = isPlaying ? "▮▮" : "▶";
     updateLiveDot();
+    updateChromeVisibility();
   }
 
   function tick(now) {
@@ -196,12 +300,6 @@
     }
   }
 
-  function setChromeVisible(visible) {
-    chromeVisible = visible;
-    chromeTop.classList.toggle("hidden", !visible);
-    chromeBottom.classList.toggle("hidden", !visible);
-  }
-
   function scheduleResume() {
     clearTimeout(resumeTimer);
     if (manuallyPaused) return;
@@ -217,6 +315,16 @@
   function pauseForManualScroll() {
     clearTimeout(resumeTimer);
     isPlaying = false;
+    updatePlayPauseUI();
+  }
+
+  function resumeFromHold() {
+    // Reels-style: releasing a tap-hold resumes immediately, unless the user
+    // had explicitly paused with the Play/Pause button — that stays paused
+    // until they explicitly press it again.
+    if (manuallyPaused) return;
+    syncScrollPosFromDOM();
+    isPlaying = true;
     updatePlayPauseUI();
   }
 
@@ -249,11 +357,14 @@
     updateProgressUI();
   }
 
-  // ---------- Manual scroll / tap-to-hide-chrome handling ----------
-  // Touch: rely on native overflow scrolling for the actual movement; we only
-  // watch touch coordinates to tell a drag (pause autoscroll, let it scroll)
-  // apart from a tap (toggle chrome). Mouse: no native drag-to-scroll on a
-  // div, so pointer events move scrollTop directly (useful for desktop testing).
+  // ---------- Manual scroll / tap-to-pause handling ----------
+  // Reels-style: pressing down pauses immediately. Releasing without having
+  // dragged resumes immediately (a tap/hold). Releasing after a drag (a
+  // scrub through the script) instead resumes after a short delay, since
+  // that's a deliberate reposition rather than a momentary hold.
+  // Touch: rely on native overflow scrolling for the actual movement. Mouse:
+  // no native drag-to-scroll on a div, so pointer events move scrollTop
+  // directly (useful for desktop testing).
 
   var touchStartY = 0, touchMoved = false;
   var mouseDown = false, mouseStartY = 0, mouseStartScrollTop = 0, mouseMoved = false;
@@ -262,20 +373,18 @@
     scriptScroll.addEventListener("touchstart", function (e) {
       touchStartY = e.touches[0].clientY;
       touchMoved = false;
+      pauseForManualScroll();
     }, { passive: true });
 
     scriptScroll.addEventListener("touchmove", function (e) {
-      var wasMoved = touchMoved;
       if (Math.abs(e.touches[0].clientY - touchStartY) > DRAG_THRESHOLD) touchMoved = true;
-      if (touchMoved && !wasMoved) pauseForManualScroll(); // only pause once it's confirmed a drag, not a tap
-      clearTimeout(resumeTimer);
     }, { passive: true });
 
     scriptScroll.addEventListener("touchend", function () {
       if (touchMoved) {
         scheduleResume();
       } else {
-        setChromeVisible(!chromeVisible);
+        resumeFromHold();
       }
     });
 
@@ -285,17 +394,15 @@
       mouseMoved = false;
       mouseStartY = e.clientY;
       mouseStartScrollTop = scriptScroll.scrollTop;
+      pauseForManualScroll();
     });
 
     scriptScroll.addEventListener("pointermove", function (e) {
       if (e.pointerType !== "mouse" || !mouseDown) return;
       var deltaY = e.clientY - mouseStartY;
-      var wasMoved = mouseMoved;
       if (Math.abs(deltaY) > DRAG_THRESHOLD) mouseMoved = true;
       if (mouseMoved) {
-        if (!wasMoved) pauseForManualScroll(); // only pause once it's confirmed a drag, not a tap/click
         scriptScroll.scrollTop = mouseStartScrollTop - deltaY;
-        clearTimeout(resumeTimer);
       }
     });
 
@@ -305,7 +412,7 @@
       if (mouseMoved) {
         scheduleResume();
       } else {
-        setChromeVisible(!chromeVisible);
+        resumeFromHold();
       }
     });
 
@@ -350,7 +457,6 @@
     isPlaying = true;
     manuallyPaused = false;
     elapsedMs = 0;
-    setChromeVisible(true);
     body.dataset.screen = "prompter";
     scrollPos = 0;
     scriptScroll.scrollTop = 0;
@@ -391,6 +497,7 @@
   // ---------- Init ----------
 
   loadState();
+  loadSharedScriptFromHash();
   initSetupScreen();
   initPrompterScreen();
   registerServiceWorker();
