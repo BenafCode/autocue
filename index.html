@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Autocue</title>
+<meta name="theme-color" content="#0B0B0C">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600&family=Libre+Franklin:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body data-screen="setup">
+
+<section id="setup-screen" class="screen">
+  <header class="wordmark-block">
+    <h1 class="wordmark">AUTOCUE</h1>
+    <div class="rule"></div>
+    <p class="label label--dateline">Rehearsal Draft</p>
+  </header>
+
+  <div class="script-input-block">
+    <div class="rule"></div>
+    <textarea id="script-input" class="script-textarea" placeholder="Paste your speech here…" spellcheck="false"></textarea>
+    <div class="rule"></div>
+  </div>
+
+  <div class="settings-block">
+    <div class="settings-row">
+      <span class="label">Font Size</span>
+      <div class="font-size-options" id="font-size-options">
+        <button type="button" class="text-btn" data-size="small">S</button>
+        <button type="button" class="text-btn" data-size="medium">M</button>
+        <button type="button" class="text-btn" data-size="large">L</button>
+        <button type="button" class="text-btn" data-size="xlarge">XL</button>
+      </div>
+    </div>
+    <div class="rule"></div>
+    <div class="settings-row">
+      <span class="label">Scroll Speed</span>
+      <input type="range" id="scroll-speed" class="speed-slider" min="1" max="10" step="1" value="5">
+    </div>
+    <div class="rule"></div>
+    <div class="settings-row">
+      <span class="label">Est. Time</span>
+      <span class="label label--dateline" id="est-time">0:00 AT 130 WPM</span>
+    </div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="start-block">
+    <button type="button" id="start-btn" class="text-link-btn">Start Rehearsal</button>
+  </div>
+</section>
+
+<section id="prompter-screen" class="screen">
+  <div class="prompter-chrome prompter-chrome--top" id="chrome-top">
+    <div class="elapsed-row">
+      <span class="label"><span class="live-dot" id="live-dot"></span>Elapsed <span id="elapsed-time">00:00</span></span>
+    </div>
+    <div class="progress-rule">
+      <div class="progress-rule__fill" id="progress-fill"></div>
+    </div>
+    <p class="label label--dateline" id="wakelock-note" hidden>Wake lock not supported — keep screen on manually</p>
+  </div>
+
+  <div class="script-scroll" id="script-scroll">
+    <div class="script-scroll__inner" id="script-content"></div>
+  </div>
+
+  <div class="prompter-chrome prompter-chrome--bottom" id="chrome-bottom">
+    <div class="rule"></div>
+    <div class="controls-row">
+      <button type="button" class="text-btn" id="play-pause-btn">▮▮</button>
+      <button type="button" class="text-btn" id="speed-down-btn">−</button>
+      <button type="button" class="text-btn" id="speed-up-btn">+</button>
+      <button type="button" class="text-btn" id="restart-btn">Restart</button>
+      <button type="button" class="text-btn" id="exit-btn">Exit</button>
+    </div>
+  </div>
+</section>
+
+<script src="./app.js"></script>
+</body>
+</html>
